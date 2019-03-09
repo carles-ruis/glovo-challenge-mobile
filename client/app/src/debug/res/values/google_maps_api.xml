@@ -1,0 +1,24 @@
+<resources>
+    <!--
+    TODO: Before you run your application, you need a Google Maps API key.
+
+    To get one, follow this link, follow the directions and press "Create" at the end:
+
+    https://console.developers.google.com/flows/enableapi?apiid=maps_android_backend&keyType=CLIENT_SIDE_ANDROID&r=EB:72:D3:9A:00:C4:12:9E:16:CF:63:7C:E7:60:DD:48:BB:F3:13:28%3Bcom.glovo.challenge
+
+    You can also add your credentials to an existing key, using these values:
+
+    Package name:
+    EB:72:D3:9A:00:C4:12:9E:16:CF:63:7C:E7:60:DD:48:BB:F3:13:28
+
+    SHA-1 certificate fingerprint:
+    EB:72:D3:9A:00:C4:12:9E:16:CF:63:7C:E7:60:DD:48:BB:F3:13:28
+
+    Alternatively, follow the directions here:
+    https://developers.google.com/maps/documentation/android/start#get-key
+
+    Once you have your key (it starts with "AIza"), replace the "google_maps_key"
+    string in this file.
+    -->
+    <string name="google_maps_key" templateMergeStrategy="preserve" translatable="false">AIzaSyCh3Bm2B2dMdk94dDBW1hR23DejXbhQnVM</string>
+</resources>
