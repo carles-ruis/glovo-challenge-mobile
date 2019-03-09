@@ -1,28 +1,41 @@
-package com.glovo.challenge.ui
+package com.glovo.challenge.ui.city
 
-import android.support.v7.app.AppCompatActivity
 import android.os.Bundle
-import android.os.Handler
+import android.support.v7.app.AppCompatActivity
 import com.glovo.challenge.R
-
+import com.glovo.challenge.data.GlovoNetworkDatasource
+import com.glovo.challenge.repository.CityRepository
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import kotlinx.android.synthetic.main.activity_main.*
 
-class MainActivity : AppCompatActivity(), OnMapReadyCallback {
+class MainActivity : AppCompatActivity(), MainView, OnMapReadyCallback {
 
     private lateinit var mMap: GoogleMap
+
+    private val presenter : MainPresenter
+    init {
+        val datasource = GlovoNetworkDatasource()
+        val repository = CityRepository(datasource)
+        presenter = MainPresenter(this, repository)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        initComponents()
         initViews()
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager
                 .findFragmentById(R.id.main_map_fragment) as SupportMapFragment
         mapFragment.getMapAsync(this)
+    }
+
+
+    private fun initComponents() {
+
     }
 
     private fun initViews() {
@@ -45,11 +58,13 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
      */
     override fun onMapReady(googleMap: GoogleMap) {
 
+        presenter.onMapReady()
+/*
         val countries = listOf("1", "2", "3", "4")
         val cities = emptyList<String>()
 
         Handler().postDelayed({ showSelectCityDialog(countries, cities) }, 2000)
-
+*/
         //     mMap = googleMap
 
         // Add a marker in Sydney and move the camera
