@@ -1,4 +1,4 @@
-package com.glovo.challenge.ui
+package com.glovo.challenge.ui.city
 
 import android.content.Context
 import android.support.v4.content.ContextCompat

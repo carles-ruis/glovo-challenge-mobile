@@ -6,6 +6,8 @@
     <string name="main_city">City: %1$s, %2$s</string>
     <string name="main_currency">Currency: %s</string>
     <string name="main_timezone">Timezone: %s</string>
+    <string name="main_retry_message">Error retrieving cities. Do you have internet connection?</string>
+    <string name="main_retry_button">Retry</string>
 
     <string name="select_city_title">Select country and city</string>
     <string name="select_city_country_hint">-- Select country --</string>
