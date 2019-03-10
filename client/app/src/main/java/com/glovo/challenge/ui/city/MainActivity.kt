@@ -9,7 +9,9 @@ import android.support.v7.app.AlertDialog
 import android.support.v7.app.AppCompatActivity
 import android.view.View.GONE
 import android.view.View.VISIBLE
+import com.glovo.challenge.R
 import com.glovo.challenge.data.GlovoNetworkDatasource
+import com.glovo.challenge.model.City
 import com.glovo.challenge.repository.CityRepository
 import com.glovo.challenge.ui.REQUEST_PERMISSION_LOCATION
 import com.glovo.challenge.ui.checkSelfPermissionCompat
@@ -19,10 +21,7 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.Marker
-import com.google.android.gms.maps.model.MarkerOptions
-import com.google.android.gms.maps.model.PolygonOptions
+import com.google.android.gms.maps.model.*
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.view_progress.*
 
@@ -33,6 +32,7 @@ class MainActivity : AppCompatActivity(), MainView, OnMapReadyCallback {
     private lateinit var mMap: GoogleMap
     private val markers = mutableListOf<Marker>()
     private val presenter: MainPresenter
+    private var polygons = mutableListOf<Polygon>()
 
     init {
         val datasource = GlovoNetworkDatasource()
@@ -49,10 +49,6 @@ class MainActivity : AppCompatActivity(), MainView, OnMapReadyCallback {
     private fun initViews() {
         setSupportActionBar(main_toolbar)
         main_toolbar.setNavigationOnClickListener { finish() }
-
-        main_city_textview.text = "City: Barcelona, Catalonia"
-        main_currency_textview.text = "Currency: EUR"
-        main_timezone_textview.text = "Timezone: GMT"
 
         mapFragment =
                 supportFragmentManager.findFragmentById(com.glovo.challenge.R.id.main_map_fragment) as SupportMapFragment
@@ -71,18 +67,6 @@ class MainActivity : AppCompatActivity(), MainView, OnMapReadyCallback {
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
         presenter.onMapReady()
-/*
-        val countries = listOf("1", "2", "3", "4")
-        val cities = emptyList<String>()
-
-        Handler().postDelayed({ showSelectCityDialog(countries, cities) }, 2000)
-*/
-        //     mMap = googleMap
-
-        // Add a marker in Sydney and move the camera
-        /*      val sydney = LatLng(-34.0, 151.0)
-              mMap.addMarker(MarkerOptions().position(sydney).title("Marker in Sydney"))
-              mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))*/
     }
 
     override fun onDestroy() {
@@ -118,9 +102,13 @@ class MainActivity : AppCompatActivity(), MainView, OnMapReadyCallback {
         for (location in locations) {
             markers.add(mMap.addMarker(MarkerOptions().title(location.first).position(location.second)))
         }
-   }
+        mMap.setOnMarkerClickListener { marker ->
+            presenter.onMarkerClick(marker)
+            true
+        }
+    }
 
-    override fun setMarkersVisibility(visible:Boolean) {
+    override fun setMarkersVisibility(visible: Boolean) {
         for (marker in markers) {
             marker.isVisible = visible
         }
@@ -147,6 +135,7 @@ class MainActivity : AppCompatActivity(), MainView, OnMapReadyCallback {
     @SuppressLint("MissingPermission")
     private fun setupMyLocation() {
         mMap.isMyLocationEnabled = true
+        mMap.setOnMyLocationButtonClickListener { getLastLocation() }
         getFusedLocationProviderClient(this).getLastLocation().addOnSuccessListener { location ->
             if (location != null) {
                 presenter.onMyLocationSuccess(LatLng(location.latitude, location.longitude))
@@ -154,21 +143,47 @@ class MainActivity : AppCompatActivity(), MainView, OnMapReadyCallback {
         }.addOnFailureListener { presenter.onMyLocationFailed() }
     }
 
-    override fun displayWorkingArea(workingArea: List<LatLng>) {
-        // Do something with your decoded polyline. For example drawing it on your map
-        mMap.addPolygon(
-            PolygonOptions().fillColor(
-                ContextCompat.getColor(
-                    this,
-                    com.glovo.challenge.R.color.red
-                )
-            ).strokeColor(ContextCompat.getColor(this, com.glovo.challenge.R.color.blue)).addAll(workingArea)
-        );
+    @SuppressLint("MissingPermission")
+    private fun getLastLocation(): Boolean {
+        getFusedLocationProviderClient(this).getLastLocation().addOnSuccessListener { location ->
+            if (location != null) {
+                presenter.onMyLocationSuccess(LatLng(location.latitude, location.longitude))
+            }
+        }
+        return true
     }
 
     override fun moveToLocation(location: LatLng, zoom: Float) {
         mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(location, zoom))
     }
 
+    override fun clearCityInfo() {
+        main_city_textview.text = ""
+        main_currency_textview.text = ""
+        main_timezone_textview.text = ""
+    }
+
+    override fun showCityInfo(city: City, country: String?) {
+        main_city_textview.text = getString(R.string.main_city, city.name, country ?: "")
+        main_currency_textview.text = if (city.currency != null) getString(R.string.main_currency, city.currency) else ""
+        main_timezone_textview.text = if (city.timeZone != null) getString(R.string.main_timezone, city.timeZone) else ""
+    }
+
+    override fun showPolygons(polygonOptions: PolygonOptions) {
+        removePolygons()
+
+        polygonOptions
+            .fillColor(ContextCompat.getColor(this, com.glovo.challenge.R.color.colorAccent_semitransparent))
+            .strokeColor(ContextCompat.getColor(this, com.glovo.challenge.R.color.colorAccent_semitransparent))
+        val newPolygon = mMap.addPolygon(polygonOptions)
+        this.polygons.add(newPolygon)
+    }
+
+    override fun removePolygons() {
+        for (polygon in polygons) {
+            polygon.remove()
+        }
+        this.polygons.clear()
+    }
 
 }

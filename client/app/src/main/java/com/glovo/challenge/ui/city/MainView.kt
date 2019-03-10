@@ -1,6 +1,8 @@
 package com.glovo.challenge.ui.city
 
+import com.glovo.challenge.model.City
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.PolygonOptions
 
 interface MainView {
 
@@ -12,6 +14,9 @@ interface MainView {
     fun setupMarkers(locations: List<Pair<String, LatLng>>)
     fun setMarkersVisibility(visible: Boolean)
     fun checkLocationPermission()
-    fun displayWorkingArea(workingArea: List<LatLng>)
     fun moveToLocation(location: LatLng, zoom: Float)
+    fun clearCityInfo()
+    fun showCityInfo(city: City, country: String?)
+    fun showPolygons(polygonOptions: PolygonOptions)
+    fun removePolygons()
 }
