@@ -16,6 +16,7 @@ import com.glovo.challenge.repository.CityRepository
 import com.glovo.challenge.ui.REQUEST_PERMISSION_LOCATION
 import com.glovo.challenge.ui.checkSelfPermissionCompat
 import com.glovo.challenge.ui.requestPermissionsCompat
+import com.glovo.challenge.ui.toPx
 import com.google.android.gms.location.LocationServices.getFusedLocationProviderClient
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
@@ -98,12 +99,12 @@ class MainActivity : AppCompatActivity(), MainView, OnMapReadyCallback {
         }
     }
 
-    override fun setupMarkers(locations: List<Pair<String, LatLng>>) {
-        for (location in locations) {
-            markers.add(mMap.addMarker(MarkerOptions().title(location.first).position(location.second)))
+    override fun setupMarkers(cityList: List<City>) {
+        for (city in cityList) {
+            markers.add(mMap.addMarker(MarkerOptions().title(city.name).position(city.center)))
         }
         mMap.setOnMarkerClickListener { marker ->
-            presenter.onMarkerClick(marker)
+            presenter.onCitySelected(marker.title)
             true
         }
     }
@@ -135,26 +136,18 @@ class MainActivity : AppCompatActivity(), MainView, OnMapReadyCallback {
     @SuppressLint("MissingPermission")
     private fun setupMyLocation() {
         mMap.isMyLocationEnabled = true
-        mMap.setOnMyLocationButtonClickListener { getLastLocation() }
-        getFusedLocationProviderClient(this).getLastLocation().addOnSuccessListener { location ->
-            if (location != null) {
-                presenter.onMyLocationSuccess(LatLng(location.latitude, location.longitude))
-            }
-        }.addOnFailureListener { presenter.onMyLocationFailed() }
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun getLastLocation(): Boolean {
-        getFusedLocationProviderClient(this).getLastLocation().addOnSuccessListener { location ->
-            if (location != null) {
-                presenter.onMyLocationSuccess(LatLng(location.latitude, location.longitude))
-            }
+        mMap.setOnMyLocationButtonClickListener {
+            getFusedLocationProviderClient(this).getLastLocation()
+                .addOnSuccessListener { presenter.onMyLocationSuccess(it) }
+            true
         }
-        return true
+        getFusedLocationProviderClient(this).getLastLocation()
+            .addOnSuccessListener { presenter.onMyLocationSuccess(it) }
+            .addOnFailureListener { presenter.onMyLocationFailed() }
     }
 
-    override fun moveToLocation(location: LatLng, zoom: Float) {
-        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(location, zoom))
+    override fun moveCamera(bounds: LatLngBounds) {
+        mMap.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 32.toPx()))
     }
 
     override fun clearCityInfo() {
@@ -165,8 +158,10 @@ class MainActivity : AppCompatActivity(), MainView, OnMapReadyCallback {
 
     override fun showCityInfo(city: City, country: String?) {
         main_city_textview.text = getString(R.string.main_city, city.name, country ?: "")
-        main_currency_textview.text = if (city.currency != null) getString(R.string.main_currency, city.currency) else ""
-        main_timezone_textview.text = if (city.timeZone != null) getString(R.string.main_timezone, city.timeZone) else ""
+        main_currency_textview.text =
+                if (city.currency != null) getString(R.string.main_currency, city.currency) else ""
+        main_timezone_textview.text =
+                if (city.timeZone != null) getString(R.string.main_timezone, city.timeZone) else ""
     }
 
     override fun showPolygons(polygonOptions: PolygonOptions) {
@@ -185,5 +180,4 @@ class MainActivity : AppCompatActivity(), MainView, OnMapReadyCallback {
         }
         this.polygons.clear()
     }
-
 }

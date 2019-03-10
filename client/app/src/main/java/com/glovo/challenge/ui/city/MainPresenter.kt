@@ -1,12 +1,11 @@
 package com.glovo.challenge.ui.city
 
+import android.location.Location
 import android.util.Log
 import com.glovo.challenge.model.City
 import com.glovo.challenge.model.Country
 import com.glovo.challenge.repository.CityRepository
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.Marker
-import com.google.android.gms.maps.model.PolygonOptions
 import com.google.maps.android.PolyUtil
 import io.reactivex.Single
 import io.reactivex.android.schedulers.AndroidSchedulers
@@ -18,19 +17,17 @@ import java.util.*
 
 class MainPresenter(val view: MainView, val repository: CityRepository) {
 
-    private val DEFAULT_ZOOM = 11f
     private val ZOOM_THRESHOLD = 9f
     private val POLYGON_COARSE_TOLERANCE_METERS = 15000.0
-    private val POLYGON_FINE_TOLERANCE_METERS = 5000.0
+    private val POLYGON_FINE_TOLERANCE_METERS = 2000.0
 
     private val disposables = CompositeDisposable()
     private var countryList = emptyList<Country>()
     private var cityList = emptyList<City>()
     private var countryMap = emptyMap<String, String>()
     private var currentCity: City? = null
-    private var currentZoom: Float = DEFAULT_ZOOM
     private var isShowingMarkers = false
-    private var isShowingPolygons = false
+    private var polygonCity : City? = null
 
     fun onMapReady() {
         getCountriesAndCities()
@@ -40,15 +37,7 @@ class MainPresenter(val view: MainView, val repository: CityRepository) {
         view.showLoading()
 
         val countriesObservable = repository.getCountries()
-        val citiesObservable = repository.getCities().doOnSuccess { cityList ->
-            for (city in cityList) {
-                val polygons = mutableListOf<List<LatLng>>()
-                for (workingArea in city.workingArea) {
-                    polygons.add(PolyUtil.decode(workingArea))
-                }
-                city.polygons = polygons.filter { it.isNotEmpty() }
-            }
-        }
+        val citiesObservable = repository.getCities()
 
         addDisposable(
             Single.zip(countriesObservable, citiesObservable,
@@ -66,17 +55,9 @@ class MainPresenter(val view: MainView, val repository: CityRepository) {
 
         view.hideLoading()
         view.registerForCameraUpdates()
-        view.setupMarkers(obtainMarkerLocations())
+        view.setupMarkers(cityList)
         view.setMarkersVisibility(false)
         view.checkLocationPermission()
-    }
-
-    private fun obtainMarkerLocations(): List<Pair<String, LatLng>> {
-        val markerLocations = mutableListOf<Pair<String, LatLng>>()
-        for (city in cityList) {
-            markerLocations.add(Pair(city.name, getCityLocation(city)))
-        }
-        return markerLocations
     }
 
     private fun onCountriesAndCitiesError(throwable: Throwable) {
@@ -110,22 +91,22 @@ class MainPresenter(val view: MainView, val repository: CityRepository) {
         getCountriesAndCities()
     }
 
-    fun onMyLocationSuccess(location: LatLng) {
-        val myLocationCity = findCityFromLocation(location)
+    fun onMyLocationSuccess(location: Location) {
+        val myLocationCity = findCityFromLocation(LatLng(location.latitude, location.longitude))
         if (myLocationCity == null) {
             showSelectCityDialog()
         } else {
-            view.moveToLocation(location, DEFAULT_ZOOM)
+            view.moveCamera(myLocationCity.bounds)
         }
     }
 
     private fun findCityFromLocation(location: LatLng): City? {
         var coarseCloseCity: City? = null
         for (city in cityList) {
-            for (polygon in city.polygons) {
-                if (PolyUtil.isLocationOnPath(location, polygon, true, POLYGON_FINE_TOLERANCE_METERS)) {
+            for (locationList in city.workingAreaLatLng) {
+                if (PolyUtil.isLocationOnPath(location, locationList, true, POLYGON_FINE_TOLERANCE_METERS)) {
                     return city
-                } else if (PolyUtil.isLocationOnPath(location, polygon, true, POLYGON_COARSE_TOLERANCE_METERS)) {
+                } else if (PolyUtil.isLocationOnPath(location, locationList, true, POLYGON_COARSE_TOLERANCE_METERS)) {
                     coarseCloseCity = city
                 }
             }
@@ -149,12 +130,11 @@ class MainPresenter(val view: MainView, val repository: CityRepository) {
     }
 
     fun onCitySelected(cityName: String) {
-        cityList.firstOrNull { city -> city.name == cityName }?.apply {
-            view.moveToLocation(getCityLocation(this), DEFAULT_ZOOM)
+        val citySelected = cityList.firstOrNull { city -> city.name == cityName }
+        if (citySelected != null) {
+            view.moveCamera(citySelected.bounds)
         }
     }
-
-    private fun getCityLocation(city: City) = city.polygons.get(0).get(0)
 
     fun onCameraUpdate(location: LatLng, zoom: Float) {
         val newCity = findCityFromLocation(location)
@@ -169,45 +149,31 @@ class MainPresenter(val view: MainView, val repository: CityRepository) {
             }
         }
 
-        if (zoom < ZOOM_THRESHOLD && !isShowingMarkers) {
-            isShowingMarkers = true
-            isShowingPolygons = false
-            view.setMarkersVisibility(true)
-            view.removePolygons()
-        } else if (zoom >= ZOOM_THRESHOLD && (!isShowingPolygons || newCity != currentCity)) {
-            isShowingMarkers = false
-            isShowingPolygons = true
-            view.setMarkersVisibility(false)
-            showPolygons(newCity?.polygons)
+        if (zoom < ZOOM_THRESHOLD) {
+            if (polygonCity != null) {
+                polygonCity = null
+                view.removePolygons()
+            }
+            if (!isShowingMarkers) {
+                isShowingMarkers = true
+                view.setMarkersVisibility(true)
+            }
+
+        } else if (zoom >= ZOOM_THRESHOLD) {
+            if (isShowingMarkers) {
+                isShowingMarkers = false
+                view.setMarkersVisibility(false)
+            }
+            if (newCity != null && newCity != polygonCity ) {
+                polygonCity = newCity
+                view.showPolygons(newCity.polygonOptions)
+            }
         }
 
         currentCity = newCity
-        currentZoom = zoom
-    }
-
-    private fun showPolygons(locationListOfList: List<List<LatLng>>?) {
-        if (locationListOfList == null) {
-            return
-        }
-        addDisposable(Single.create<PolygonOptions> { emitter ->
-            val polygonOptions = PolygonOptions()
-            for (locationList in locationListOfList) {
-                polygonOptions.addAll(locationList)
-            }
-            emitter.onSuccess(polygonOptions)
-        }
-            .subscribeOn(Schedulers.computation())
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe { polygonOptions ->
-                view.showPolygons(polygonOptions)
-            })
     }
 
     private fun hasFullInfo(city: City) = city.currency != null && city.timeZone != null
-
-    fun onMarkerClick(marker: Marker) {
-        view.moveToLocation(marker.position, DEFAULT_ZOOM)
-    }
 
     fun onViewDestroyed() {
         if (!disposables.isDisposed()) {
