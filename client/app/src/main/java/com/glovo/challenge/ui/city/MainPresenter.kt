@@ -96,14 +96,14 @@ class MainPresenter(val view: MainView, val repository: CityRepository) {
         if (myLocationCity == null) {
             showSelectCityDialog()
         } else {
-            view.moveCamera(myLocationCity.bounds)
+            view.moveCamera(myLocationCity.workingArea.bounds)
         }
     }
 
     private fun findCityFromLocation(location: LatLng): City? {
         var coarseCloseCity: City? = null
         for (city in cityList) {
-            for (locationList in city.workingAreaLatLng) {
+            for (locationList in city.workingArea.areas) {
                 if (PolyUtil.isLocationOnPath(location, locationList, true, POLYGON_FINE_TOLERANCE_METERS)) {
                     return city
                 } else if (PolyUtil.isLocationOnPath(location, locationList, true, POLYGON_COARSE_TOLERANCE_METERS)) {
@@ -132,7 +132,7 @@ class MainPresenter(val view: MainView, val repository: CityRepository) {
     fun onCitySelected(cityName: String) {
         val citySelected = cityList.firstOrNull { city -> city.name == cityName }
         if (citySelected != null) {
-            view.moveCamera(citySelected.bounds)
+            view.moveCamera(citySelected.workingArea.bounds)
         }
     }
 
@@ -166,7 +166,7 @@ class MainPresenter(val view: MainView, val repository: CityRepository) {
             }
             if (newCity != null && newCity != polygonCity ) {
                 polygonCity = newCity
-                view.showPolygons(newCity.polygonOptions)
+                view.showPolygons(newCity.workingArea.polygonOptions)
             }
         }
 

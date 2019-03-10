@@ -101,7 +101,7 @@ class MainActivity : AppCompatActivity(), MainView, OnMapReadyCallback {
 
     override fun setupMarkers(cityList: List<City>) {
         for (city in cityList) {
-            markers.add(mMap.addMarker(MarkerOptions().title(city.name).position(city.center)))
+            markers.add(mMap.addMarker(MarkerOptions().title(city.name).position(city.workingArea.bounds.center)))
         }
         mMap.setOnMarkerClickListener { marker ->
             presenter.onCitySelected(marker.title)
