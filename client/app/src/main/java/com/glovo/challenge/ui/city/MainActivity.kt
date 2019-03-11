@@ -23,9 +23,10 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.view_progress.*
-
 
 class MainActivity : AppCompatActivity(), MainView, OnMapReadyCallback {
 
@@ -38,7 +39,7 @@ class MainActivity : AppCompatActivity(), MainView, OnMapReadyCallback {
     init {
         val datasource = GlovoNetworkDatasource()
         val repository = CityRepository(datasource)
-        presenter = MainPresenter(this, repository)
+        presenter = MainPresenter(this, repository, AndroidSchedulers.mainThread(), Schedulers.io())
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

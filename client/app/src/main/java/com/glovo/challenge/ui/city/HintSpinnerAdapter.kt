@@ -8,8 +8,8 @@ import android.widget.ArrayAdapter
 import android.widget.TextView
 import com.glovo.challenge.R
 
-class HintSpinnerAdapter(context: Context, val firstItem: String) : ArrayAdapter<String>(context, R.layout.item_hint_spinner,
-        mutableListOf(firstItem)) {
+class HintSpinnerAdapter(context: Context, val firstItem: String)
+    : ArrayAdapter<String>(context, R.layout.item_hint_spinner, mutableListOf(firstItem)) {
 
     private val hintTextColor = ContextCompat.getColor(context, R.color.hintTextColor)
     private val defaultTextColor = ContextCompat.getColor(context, R.color.defaultTextColor)

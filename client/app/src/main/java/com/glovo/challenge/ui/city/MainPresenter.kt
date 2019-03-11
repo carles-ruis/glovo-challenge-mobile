@@ -7,27 +7,25 @@ import com.glovo.challenge.model.Country
 import com.glovo.challenge.repository.CityRepository
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.PolyUtil
+import io.reactivex.Scheduler
 import io.reactivex.Single
-import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.functions.BiFunction
-import io.reactivex.schedulers.Schedulers
 import java.util.*
 
-class MainPresenter(val view: MainView, val repository: CityRepository) {
+class MainPresenter(val view: MainView, val repository: CityRepository, val uiScheduler: Scheduler, val jobScheduler: Scheduler) {
 
     private val ZOOM_THRESHOLD = 9f
     private val POLYGON_COARSE_TOLERANCE_METERS = 15000.0
     private val POLYGON_FINE_TOLERANCE_METERS = 2000.0
 
-    private val disposables = CompositeDisposable()
-    private var countryList = emptyList<Country>()
-    private var cityList = emptyList<City>()
+    internal val disposables = CompositeDisposable()
+    internal var cityList = emptyList<City>()
     private var countryMap = emptyMap<String, String>()
     private var currentCity: City? = null
     private var isShowingMarkers = false
-    private var polygonCity : City? = null
+    private var polygonCity: City? = null
 
     fun onMapReady() {
         getCountriesAndCities()
@@ -42,16 +40,15 @@ class MainPresenter(val view: MainView, val repository: CityRepository) {
         addDisposable(
             Single.zip(countriesObservable, citiesObservable,
                 BiFunction { countries: List<Country>, cities: List<City> -> Pair(countries, cities) })
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
+                .subscribeOn(jobScheduler)
+                .observeOn(uiScheduler)
                 .subscribe(::onCountriesAndCitiesSuccess, ::onCountriesAndCitiesError)
         )
     }
 
     private fun onCountriesAndCitiesSuccess(result: Pair<List<Country>, List<City>>) {
-        this.countryList = result.first
+        this.countryMap = result.first.map { it.code to it.name }.toMap()
         this.cityList = result.second
-        this.countryMap = countryList.map { it.code to it.name }.toMap()
 
         view.hideLoading()
         view.registerForCameraUpdates()
@@ -62,29 +59,6 @@ class MainPresenter(val view: MainView, val repository: CityRepository) {
 
     private fun onCountriesAndCitiesError(throwable: Throwable) {
         view.showRetry()
-    }
-
-    private fun getCityDetails(code: String) {
-        addDisposable(
-            repository.getCity(code)
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(::onCityDetailsSuccess, ::onCityDetailsError)
-        )
-    }
-
-    private fun onCityDetailsSuccess(cityDetail: City) {
-        cityList.first { city -> city.code == cityDetail.code }.apply {
-            if (this == currentCity) {
-                currency = cityDetail.currency
-                timeZone = cityDetail.timeZone
-                view.showCityInfo(this, countryMap.get(countryCode))
-            }
-        }
-    }
-
-    private fun onCityDetailsError(throwable: Throwable) {
-        Log.w(javaClass.simpleName, "onCityDetailsError: " + throwable.message)
     }
 
     fun onRetryClick() {
@@ -121,10 +95,16 @@ class MainPresenter(val view: MainView, val repository: CityRepository) {
     private fun showSelectCityDialog() {
         val countriesCities = TreeMap<String, MutableList<String>>()
 
-        countryList.forEach { countriesCities.put(it.name, mutableListOf()) }
-        cityList.forEach {
-            countriesCities.get(countryMap.get(it.countryCode))?.add(it.name)
+        for (city in cityList) {
+            val countryName = countryMap.get(city.countryCode)
+            if (countryName != null) {
+                if (!countriesCities.containsKey(countryName)) {
+                    countriesCities.put(countryName, mutableListOf())
+                }
+                countriesCities.get(countryName)!!.add(city.name)
+            }
         }
+
         countriesCities.forEach { it.value.sort() }
         view.showSelectCityDialog(countriesCities.filter { it.key.isNotBlank() && it.value.isNotEmpty() })
     }
@@ -143,7 +123,7 @@ class MainPresenter(val view: MainView, val repository: CityRepository) {
                 view.clearCityInfo()
             } else {
                 view.showCityInfo(newCity, countryMap.get(newCity.countryCode))
-                if (!hasFullInfo(newCity)) {
+                if (newCity.currency == null) {
                     getCityDetails(newCity.code)
                 }
             }
@@ -164,7 +144,7 @@ class MainPresenter(val view: MainView, val repository: CityRepository) {
                 isShowingMarkers = false
                 view.setMarkersVisibility(false)
             }
-            if (newCity != null && newCity != polygonCity ) {
+            if (newCity != null && newCity != polygonCity) {
                 polygonCity = newCity
                 view.showPolygons(newCity.workingArea.polygonOptions)
             }
@@ -173,7 +153,28 @@ class MainPresenter(val view: MainView, val repository: CityRepository) {
         currentCity = newCity
     }
 
-    private fun hasFullInfo(city: City) = city.currency != null && city.timeZone != null
+    private fun getCityDetails(code: String) {
+        addDisposable(
+            repository.getCity(code)
+                .subscribeOn(jobScheduler)
+                .observeOn(uiScheduler)
+                .subscribe(::onCityDetailsSuccess, ::onCityDetailsError)
+        )
+    }
+
+    private fun onCityDetailsSuccess(cityDetail: City) {
+        cityList.first { city -> city.code == cityDetail.code }.apply {
+            if (this == currentCity) {
+                currency = cityDetail.currency
+                timeZone = cityDetail.timeZone
+                view.showCityInfo(this, countryMap.get(countryCode))
+            }
+        }
+    }
+
+    private fun onCityDetailsError(throwable: Throwable) {
+        Log.w(javaClass.simpleName, "onCityDetailsError: " + throwable.message)
+    }
 
     fun onViewDestroyed() {
         if (!disposables.isDisposed()) {
@@ -181,7 +182,7 @@ class MainPresenter(val view: MainView, val repository: CityRepository) {
         }
     }
 
-    private fun addDisposable(disposable: Disposable) {
+    fun addDisposable(disposable: Disposable) {
         disposables.add(disposable);
     }
 }
